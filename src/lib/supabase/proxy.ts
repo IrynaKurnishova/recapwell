@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
+import { LAST_ORG_COOKIE } from "@/lib/orgs-shared";
+import { safeNextPath } from "@/lib/safe-redirect";
 
 const PROTECTED_PREFIXES = ["/app"];
 const AUTH_PAGES = ["/login"];
@@ -42,10 +44,22 @@ export async function updateSession(request: NextRequest) {
     return redirectWithCookies(url, response);
   }
 
+  // Remember the last opened workspace so /app can send the user back to it.
+  const orgSlug = pathname.match(/^\/app\/([a-z0-9-]+)(?:\/|$)/)?.[1];
+  if (isSignedIn && orgSlug && orgSlug !== "onboarding") {
+    response.cookies.set(LAST_ORG_COOKIE, orgSlug, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 365,
+    });
+  }
+
   if (isAuthPage && isSignedIn) {
     const url = request.nextUrl.clone();
-    url.pathname = "/app";
-    url.search = "";
+    const target = new URL(safeNextPath(request.nextUrl.searchParams.get("next")), request.url);
+    url.pathname = target.pathname;
+    url.search = target.search;
     return redirectWithCookies(url, response);
   }
 

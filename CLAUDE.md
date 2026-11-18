@@ -11,6 +11,13 @@ Portfolio demo of a multi-tenant B2B SaaS: Next.js 16 + Supabase + Stripe (test 
 - Create a new Supabase server client per request. Browser code only uses `src/lib/supabase/client.ts`.
 - Tailwind v4 tokens live in `src/app/globals.css` (`brand`, `ink`, `ink-muted`, `line`, `surface`) plus `.btn-primary`, `.btn-secondary`, `.input`.
 
+## App structure
+- `/app` redirects to the last workspace (cookie `rw_last_org`, set in the proxy), the first one, or `/app/onboarding`.
+- Workspace pages live under `src/app/app/[orgSlug]/`. Start every page with `getOrgContext(slug)` from `src/lib/orgs.ts` and call `notFound()` when it returns null (non-members get the same 404 as a missing workspace).
+- `params` is runtime data with Cache Components: read it inside a component wrapped in `<Suspense>`.
+- Server Actions validate input, call Supabase as the signed-in user (RLS/RPCs enforce permissions), map errors with `dbErrorMessage()` and call `refresh()`.
+- Invites: owners/admins create a link (`/invite/[token]`); emails are not sent yet.
+
 ## Database (Supabase, local via Docker)
 - Schema changes only as new files in `supabase/migrations/` (`npx supabase migration new <name>`). Never edit a migration that is already committed.
 - Every org-scoped table has `org_id` and RLS. Policies use `private.is_member(org_id)` / `private.has_role(org_id, roles)`; never query `memberships` inside a `memberships` policy (recursion).
