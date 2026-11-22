@@ -8,6 +8,7 @@ export function OrgNav({ slug }: { slug: string }) {
   const items = [
     { href: `/app/${slug}`, label: "Overview" },
     { href: `/app/${slug}/members`, label: "Members" },
+    { href: `/app/${slug}/billing`, label: "Billing" },
   ];
 
   return (

@@ -11,7 +11,9 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:test": "supabase test db",
-    "db:types": "supabase gen types typescript > src/lib/database.types.ts"
+    "db:types": "supabase gen types typescript > src/lib/database.types.ts",
+    "stripe:setup": "node --env-file=.env.local scripts/stripe-setup.mjs",
+    "stripe:listen": "stripe listen --forward-to localhost:3000/api/stripe/webhook --events checkout.session.completed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,invoice.paid,invoice.payment_failed"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
@@ -19,7 +21,9 @@
     "geist": "^1.9.2",
     "next": "16.4.6",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1",
+    "stripe": "^23.2.0"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",

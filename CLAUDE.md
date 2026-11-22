@@ -27,6 +27,12 @@ Portfolio demo of a multi-tenant B2B SaaS: Next.js 16 + Supabase + Stripe (test 
 - After a schema change: `npm run db:reset && npm run db:test`, then `npm run db:types`. Add a pgTAP test for every new policy.
 - Seed users (password `password123`): alice (Acme owner, Team), carol (Acme member), bob (Bluebird owner, Free), admin (super admin).
 
+## Billing (Stripe sandbox)
+- `getStripe()` from `src/lib/stripe.ts` (server-only, lazy). Prices by lookup key from `src/lib/billing/plans.ts`, never hard-coded price IDs.
+- Plan state changes only in the webhook via `syncSubscription()` (re-fetch from Stripe, idempotent). Checkout success pages never write billing state.
+- `createAdminClient()` (`src/lib/supabase/admin.ts`) bypasses RLS: only for webhooks/billing/super-admin, after your own checks.
+- Pure billing rules live in `src/lib/billing/plans.ts` so they can be unit-tested.
+
 ## Secrets
 - Stripe secret key, webhook secret, Anthropic key, Supabase secret key: server-only, no `NEXT_PUBLIC_` prefix, never imported into Client Components, never committed.
 

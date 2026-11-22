@@ -11,7 +11,7 @@ Recapwell is a fictional product. Stripe runs in **test mode** only.
 - **Next.js 16** (App Router, Cache Components / Partial Prerendering, `proxy.ts`) + TypeScript
 - **Tailwind CSS v4**
 - **Supabase**: Auth (email + password, Google OAuth), Postgres, Row Level Security, SQL migrations, pgTAP tests
-- **Stripe**: subscriptions per workspace, Checkout, Customer Portal, webhooks *(step 4)*
+- **Stripe** (sandbox): subscription per workspace, Checkout, signed + idempotent webhooks, Customer Portal *(step 5)*
 - **Claude API**: recap generation with validated JSON output *(step 6)*
 - **Vitest** + **GitHub Actions** *(step 9)*, **Vercel** deploy
 
@@ -19,8 +19,8 @@ Recapwell is a fictional product. Stripe runs in **test mode** only.
 
 - [x] 1. Next.js scaffold + Supabase Auth (email/password, Google, protected `/app`)
 - [x] 2. Database schema, Row Level Security, seed data, pgTAP tests
-- [ ] 3. Organizations UI: onboarding, workspace switcher, members, invites, roles
-- [ ] 4. Stripe: Checkout per workspace, webhooks → `subscriptions`
+- [x] 3. Organizations UI: onboarding, workspace switcher, members, invites, roles
+- [x] 4. Stripe: Checkout per workspace, webhooks → `subscriptions`
 - [ ] 5. Billing page + Customer Portal
 - [ ] 6. AI recaps (Claude API) + plan and usage gating
 - [ ] 7. Modules: follow-up email, action tracker, export
@@ -80,6 +80,21 @@ npm run dev                  # http://localhost:3000
 ```
 
 Local URLs: Studio http://127.0.0.1:54323 · Mailpit (test emails) http://127.0.0.1:54324
+
+### Stripe (sandbox)
+
+1. Create a Stripe account and open its **sandbox** (no business verification needed).
+2. Put the sandbox secret key (`sk_test_…`) into `.env.local` as `STRIPE_SECRET_KEY`, and the local Supabase "Secret" key as `SUPABASE_SECRET_KEY`.
+3. `npm run stripe:setup` creates the **Recapwell Team** product with `recapwell_team_monthly` ($29) and `recapwell_team_yearly` ($290) prices. Prices are found by lookup key, so no price IDs in env vars.
+4. Install the Stripe CLI (`brew install stripe/stripe-cli/stripe`), run `stripe login`, then keep `npm run stripe:listen` running next to `npm run dev`. Copy the `whsec_…` it prints into `.env.local` as `STRIPE_WEBHOOK_SECRET` and restart the dev server.
+5. Billing → Upgrade, pay with `4242 4242 4242 4242`, any future date, any CVC.
+
+How billing works:
+
+- One Stripe customer per **workspace** (`metadata.org_id`), created on first checkout.
+- The Checkout redirect does not change the plan. Only the webhook does: `POST /api/stripe/webhook` verifies the signature on the raw body, records the event id in `stripe_events` (duplicates are acknowledged and skipped), then re-reads the subscription from Stripe and writes plan, status and period end to `subscriptions` with the server-only admin client.
+- Handled events: `checkout.session.completed`, `customer.subscription.created|updated|deleted`, `invoice.paid`, `invoice.payment_failed`. `past_due` keeps Team features while Stripe retries; anything else falls back to Free.
+- Plan changes are written to `audit_log`.
 
 ### Demo accounts (password `password123`)
 
