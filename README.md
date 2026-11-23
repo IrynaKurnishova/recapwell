@@ -13,6 +13,7 @@ Recapwell is a fictional product. Stripe runs in **test mode** only.
 - **Supabase**: Auth (email + password, Google OAuth), Postgres, Row Level Security, SQL migrations, pgTAP tests
 - **Stripe** (sandbox): subscription per workspace, Checkout, signed + idempotent webhooks, Customer Portal *(step 5)*
 - **Claude API**: recap generation with validated JSON output *(step 6)*
+- **MCP server** (`mcp/`): use Recapwell from Claude Desktop / Claude Code — TypeScript, `@modelcontextprotocol/sdk`, stdio
 - **Vitest** + **GitHub Actions** *(step 9)*, **Vercel** deploy
 
 ## Roadmap
@@ -23,6 +24,7 @@ Recapwell is a fictional product. Stripe runs in **test mode** only.
 - [x] 4. Stripe: Checkout per workspace, webhooks → `subscriptions`
 - [ ] 5. Billing page + Customer Portal
 - [ ] 6. AI recaps (Claude API) + plan and usage gating
+- [x] 6a. MCP server: use Recapwell from Claude (local, stdio)
 - [ ] 7. Modules: follow-up email, action tracker, export
 - [ ] 8. Workspace dashboard + super-admin dashboard
 - [ ] 9. Vitest, GitHub Actions CI, audit log in the UI
@@ -122,6 +124,80 @@ New schema change: `npx supabase migration new <name>`, write SQL, then `npm run
 1. Google Cloud Console → APIs & Services → Credentials → **OAuth client ID** (Web application).
 2. Authorized redirect URI: `https://<project-ref>.supabase.co/auth/v1/callback` (for local Supabase: `http://127.0.0.1:54321/auth/v1/callback`).
 3. Supabase → Authentication → Providers → **Google** (or `[auth.external.google]` in `supabase/config.toml` locally).
+
+## Use Recapwell from Claude (MCP server)
+
+`mcp/` is a small [Model Context Protocol](https://modelcontextprotocol.io) server. Connect it to Claude Desktop or Claude Code and ask things like *"What's still open in Acme Studio?"* — Claude reads your workspaces, recaps and action items, and can tick an item off.
+
+![Claude Code using the Recapwell MCP server](docs/mcp-claude-code.png)
+
+**Tools**
+
+| Tool | What it does | Writes? |
+|---|---|---|
+| `list_workspaces` | Your workspaces with slug, role and plan | — |
+| `list_recaps(org_slug, limit)` | Latest recaps with ids and short summaries | — |
+| `get_recap(recap_id)` | Summary, decisions, open questions, action items, follow-up email | — |
+| `list_open_action_items(org_slug, owner?)` | Open items, soonest due first, optional owner filter | — |
+| `mark_action_item_done(action_item_id, done?)` | Marks an item done (or re-opens it) | ✓ |
+
+**Security model.** The server signs in to Supabase **as a normal Recapwell user** (publishable key + email/password) — no secret key. Every query goes through the same Row Level Security as the web app, so Claude only sees that user's workspaces, and the single write uses the existing column grant on `action_items.done`. Inputs are validated with zod; database and auth errors come back as short, readable tool errors.
+
+**Design.** Tools depend on a `RecapwellData` interface (`mcp/src/data.ts`), implemented with supabase-js in `supabase-data.ts`. Tests in `mcp/src/server.test.ts` run a real MCP client against the server over an in-memory transport with a fake data layer (validation, results, error texts).
+
+### Set up
+
+```bash
+npm install            # installs the mcp/ workspace too
+npm run db:start       # local Supabase must be running
+cp mcp/.env.example mcp/.env   # publishable key from db:start + a demo user
+npm run mcp:build      # → mcp/dist/index.js
+npm run mcp:test       # Vitest
+npm run mcp:inspect    # optional: try the tools in MCP Inspector
+```
+
+### Claude Code
+
+```bash
+claude mcp add recapwell -- node /absolute/path/to/recapwell/mcp/dist/index.js
+```
+
+Credentials come from `mcp/.env`. Check with `/mcp` inside Claude Code (`✔ recapwell · 5 tools`).
+
+### Claude Desktop
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` and restart Claude Desktop. Use the absolute path to `node` (`which node`) — Desktop doesn't load your shell's PATH (nvm etc.).
+
+```json
+{
+  "mcpServers": {
+    "recapwell": {
+      "command": "/absolute/path/to/node",
+      "args": ["/absolute/path/to/recapwell/mcp/dist/index.js"],
+      "env": {
+        "RECAPWELL_SUPABASE_URL": "http://127.0.0.1:54321",
+        "RECAPWELL_SUPABASE_KEY": "sb_publishable_...",
+        "RECAPWELL_EMAIL": "alice@recapwell.test",
+        "RECAPWELL_PASSWORD": "password123"
+      }
+    }
+  }
+}
+```
+
+### Example conversation
+
+> **You:** What's still open in Acme Studio, and who owns it?
+>
+> **Claude:** *(calls `list_workspaces`, then `list_open_action_items` with `org_slug: "acme-studio"`)* Two items are open, both owned by Carol: "Finish the sitemap" (due Nov 25, from *Weekly sync*) and "Draft the new sitemap" (due Nov 27, from *Website relaunch kickoff*).
+>
+> **You:** Mark "Finish the sitemap" as done.
+>
+> **Claude:** *(calls `mark_action_item_done`)* Done — "Finish the sitemap" is checked off. One open item left in Acme Studio.
+
+Signed in as `bob@recapwell.test`, the same questions about Acme Studio return *"No workspace "acme-studio" — it doesn't exist or you're not a member"*: RLS at work.
+
+A remote version (Streamable HTTP at `/api/mcp` on Vercel, with per-user auth) is planned for the deploy step.
 
 ## Scripts
 

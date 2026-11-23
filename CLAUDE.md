@@ -33,6 +33,12 @@ Portfolio demo of a multi-tenant B2B SaaS: Next.js 16 + Supabase + Stripe (test 
 - `createAdminClient()` (`src/lib/supabase/admin.ts`) bypasses RLS: only for webhooks/billing/super-admin, after your own checks.
 - Pure billing rules live in `src/lib/billing/plans.ts` so they can be unit-tested.
 
+## MCP server (`mcp/`)
+- npm workspace `@recapwell/mcp`; built with esbuild to `mcp/dist/index.js` (`npm run mcp:build`), tests `npm run mcp:test`.
+- stdio transport: never write to stdout (it's the protocol) — log with `console.error`.
+- Acts as a normal Supabase user (publishable key + email/password from env / `mcp/.env`), never the secret key, so RLS applies.
+- Tools depend on the `RecapwellData` interface; add new queries in `supabase-data.ts` and a fake + test in `server.test.ts`. Validate inputs with zod; throw `UserFacingError` for expected "not found" cases.
+
 ## Secrets
 - Stripe secret key, webhook secret, Anthropic key, Supabase secret key: server-only, no `NEXT_PUBLIC_` prefix, never imported into Client Components, never committed.
 
