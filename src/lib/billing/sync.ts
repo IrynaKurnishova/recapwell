@@ -2,7 +2,7 @@ import "server-only";
 import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isTeamPrice, periodEnd, planFromSubscription } from "./plans";
+import { isTeamPrice, periodEnd, planFromSubscription, scheduledEnd } from "./plans";
 
 /**
  * Re-reads a subscription from Stripe and writes its state to `subscriptions`.
@@ -38,6 +38,7 @@ export async function syncSubscription(subscriptionId: string) {
 
   const teamItem = sub.items.data.find((item) => isTeamPrice(item.price.lookup_key));
   const ended = plan === "free";
+  const ending = scheduledEnd(sub);
 
   const { error } = await admin
     .from("subscriptions")
@@ -47,8 +48,9 @@ export async function syncSubscription(subscriptionId: string) {
       stripe_customer_id: customerId,
       stripe_subscription_id: ended ? null : sub.id,
       stripe_price_id: ended ? null : (teamItem?.price.id ?? null),
-      current_period_end: ended ? null : periodEnd(sub),
-      cancel_at_period_end: ended ? false : sub.cancel_at_period_end,
+      // When a cancellation is scheduled, store the date it ends (shown as "ends on").
+      current_period_end: ended ? null : (ending.endsAt ?? periodEnd(sub)),
+      cancel_at_period_end: ended ? false : ending.cancels,
     })
     .eq("org_id", orgId);
   if (error) throw error;

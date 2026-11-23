@@ -32,6 +32,7 @@ Portfolio demo of a multi-tenant B2B SaaS: Next.js 16 + Supabase + Stripe (test 
 - Plan state changes only in the webhook via `syncSubscription()` (re-fetch from Stripe, idempotent). Checkout success pages never write billing state.
 - `createAdminClient()` (`src/lib/supabase/admin.ts`) bypasses RLS: only for webhooks/billing/super-admin, after your own checks.
 - Pure billing rules live in `src/lib/billing/plans.ts` so they can be unit-tested.
+- Billing Server Actions start with `requireBillingManager(orgId)` (`src/lib/billing/guard.ts`) and throw `BillingError` for messages shown to the user. A scheduled cancellation can be `cancel_at_period_end` or `cancel_at` — use `scheduledEnd()`.
 
 ## MCP server (`mcp/`)
 - npm workspace `@recapwell/mcp`; built with esbuild to `mcp/dist/index.js` (`npm run mcp:build`), tests `npm run mcp:test`.

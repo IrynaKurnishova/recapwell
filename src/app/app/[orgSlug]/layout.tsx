@@ -4,7 +4,9 @@ import { Logo } from "@/components/Logo";
 import { OrgNav } from "@/components/OrgNav";
 import { OrgSwitcher } from "@/components/OrgSwitcher";
 import { UserMenu } from "@/components/UserMenu";
+import { PastDueBanner } from "@/components/PastDueBanner";
 import { getOrgContext } from "@/lib/orgs";
+import { canManageMembers } from "@/lib/orgs-shared";
 
 export default function OrgLayout({ children, params }: LayoutProps<"/app/[orgSlug]">) {
   return (
@@ -18,6 +20,9 @@ export default function OrgLayout({ children, params }: LayoutProps<"/app/[orgSl
           </Suspense>
         </div>
       </header>
+      <Suspense>
+        <BillingBanner params={params} />
+      </Suspense>
       <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-8">{children}</div>
     </div>
   );
@@ -38,6 +43,13 @@ async function OrgHeader({ params }: Pick<LayoutProps<"/app/[orgSlug]">, "params
       </div>
     </>
   );
+}
+
+async function BillingBanner({ params }: Pick<LayoutProps<"/app/[orgSlug]">, "params">) {
+  const { orgSlug } = await params;
+  const ctx = await getOrgContext(orgSlug);
+  if (!ctx || ctx.status !== "past_due") return null;
+  return <PastDueBanner slug={ctx.org.slug} canManage={canManageMembers(ctx.org.role)} />;
 }
 
 function HeaderSkeleton() {

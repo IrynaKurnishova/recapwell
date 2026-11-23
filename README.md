@@ -11,7 +11,7 @@ Recapwell is a fictional product. Stripe runs in **test mode** only.
 - **Next.js 16** (App Router, Cache Components / Partial Prerendering, `proxy.ts`) + TypeScript
 - **Tailwind CSS v4**
 - **Supabase**: Auth (email + password, Google OAuth), Postgres, Row Level Security, SQL migrations, pgTAP tests
-- **Stripe** (sandbox): subscription per workspace, Checkout, signed + idempotent webhooks, Customer Portal *(step 5)*
+- **Stripe** (sandbox): subscription per workspace, Checkout, signed + idempotent webhooks, Customer Portal
 - **Claude API**: recap generation with validated JSON output *(step 6)*
 - **MCP server** (`mcp/`): use Recapwell from Claude Desktop / Claude Code — TypeScript, `@modelcontextprotocol/sdk`, stdio
 - **Vitest** + **GitHub Actions** *(step 9)*, **Vercel** deploy
@@ -22,7 +22,7 @@ Recapwell is a fictional product. Stripe runs in **test mode** only.
 - [x] 2. Database schema, Row Level Security, seed data, pgTAP tests
 - [x] 3. Organizations UI: onboarding, workspace switcher, members, invites, roles
 - [x] 4. Stripe: Checkout per workspace, webhooks → `subscriptions`
-- [ ] 5. Billing page + Customer Portal
+- [x] 5. Billing page + Customer Portal
 - [ ] 6. AI recaps (Claude API) + plan and usage gating
 - [x] 6a. MCP server: use Recapwell from Claude (local, stdio)
 - [ ] 7. Modules: follow-up email, action tracker, export
@@ -97,6 +97,20 @@ How billing works:
 - The Checkout redirect does not change the plan. Only the webhook does: `POST /api/stripe/webhook` verifies the signature on the raw body, records the event id in `stripe_events` (duplicates are acknowledged and skipped), then re-reads the subscription from Stripe and writes plan, status and period end to `subscriptions` with the server-only admin client.
 - Handled events: `checkout.session.completed`, `customer.subscription.created|updated|deleted`, `invoice.paid`, `invoice.payment_failed`. `past_due` keeps Team features while Stripe retries; anything else falls back to Free.
 - Plan changes are written to `audit_log`.
+- **Billing page** (`/app/<slug>/billing`): plan, status and renewal/end date, usage bars (recaps this month, members) against the plan limits, Upgrade (Free), **Manage billing** → Stripe Customer Portal (card, invoices, monthly ↔ yearly), **Cancel** at the end of the period and **Keep my Team plan** to undo it. Only owners/admins see billing actions; every action re-checks the role on the server (`src/lib/billing/guard.ts`).
+- Cancel/resume call Stripe and then sync right away, so the page updates without waiting for the webhook. A cancellation scheduled in the portal (`cancel_at`) is recognised the same way as `cancel_at_period_end`.
+- **Failed payments**: while Stripe retries (`past_due`) the workspace keeps Team features and every page shows a red banner; owners/admins get a direct link to update the card. If Stripe gives up, the plan falls back to Free.
+
+Customer Portal setup (once, in the sandbox): Settings → Billing → Customer portal → enable payment methods, invoices, cancellations at the end of the period and *switch plans* with both Recapwell Team prices → Save.
+
+**Testing a failed payment.** The webhook path is the same for every event, so the UI can be checked locally by flipping the status:
+
+```bash
+docker exec supabase_db_recapwell psql -U postgres \
+  -c "update subscriptions set status = 'past_due' where org_id = '<org id>'"
+```
+
+Every page of that workspace then shows the past-due banner. Any Stripe event, or Cancel → Keep on the Billing page, re-syncs the real status. An end-to-end check of a failed renewal uses Stripe test clocks (a subscription on a clock, card `4000 0000 0000 0341`, advance the clock past the renewal) — planned with the test suite. Note: these subscriptions use Stripe's flexible billing mode, where resetting the billing cycle with `proration_behavior=none` doesn't create an invoice, so it can't be used to force a charge.
 
 ### Demo accounts (password `password123`)
 

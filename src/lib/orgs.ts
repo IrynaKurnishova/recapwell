@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createClient, getCurrentUser } from "@/lib/supabase/server";
 import type { OrgRole, PlanTier } from "@/lib/orgs-shared";
+import type { Enums } from "@/lib/database.types";
 
 export type MyOrg = { id: string; name: string; slug: string; role: OrgRole };
 
@@ -10,6 +11,8 @@ export type OrgContext = {
   org: MyOrg;
   orgs: MyOrg[];
   plan: PlanTier;
+  /** Stripe status for Team; Free is always "active". */
+  status: Enums<"subscription_status">;
   maxMembers: number;
   monthlyRecaps: number;
 };
@@ -45,7 +48,7 @@ export const getOrgContext = cache(async (slug: string): Promise<OrgContext | nu
   if (!org) return null;
 
   const supabase = await createClient();
-  const { data: sub } = await supabase.from("subscriptions").select("plan").eq("org_id", org.id).single();
+  const { data: sub } = await supabase.from("subscriptions").select("plan, status").eq("org_id", org.id).single();
   const plan = sub?.plan ?? "free";
   const { data: limits } = await supabase
     .from("plan_limits")
@@ -59,6 +62,7 @@ export const getOrgContext = cache(async (slug: string): Promise<OrgContext | nu
     org,
     orgs,
     plan,
+    status: sub?.status ?? "active",
     maxMembers: limits?.max_members ?? 0,
     monthlyRecaps: limits?.monthly_recaps ?? 0,
   };

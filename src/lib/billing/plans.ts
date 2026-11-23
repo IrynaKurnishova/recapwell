@@ -23,6 +23,8 @@ const TEAM_STATUSES = new Set<string>(["active", "trialing", "past_due"]);
 
 type SubscriptionLike = {
   status: string;
+  cancel_at_period_end?: boolean;
+  cancel_at?: number | null;
   items: { data: { price: { lookup_key: string | null }; current_period_end?: number }[] };
 };
 
@@ -51,4 +53,15 @@ export function periodEnd(sub: SubscriptionLike): string | null {
 
 export function isKnownStatus(status: string): status is SubscriptionStatus {
   return (DB_STATUSES as string[]).includes(status);
+}
+
+/**
+ * Whether the subscription is set to end, and when.
+ * The Customer Portal may schedule this with `cancel_at` (a date) instead of
+ * `cancel_at_period_end`, so check both.
+ */
+export function scheduledEnd(sub: SubscriptionLike): { cancels: boolean; endsAt: string | null } {
+  if (sub.cancel_at) return { cancels: true, endsAt: new Date(sub.cancel_at * 1000).toISOString() };
+  if (sub.cancel_at_period_end) return { cancels: true, endsAt: periodEnd(sub) };
+  return { cancels: false, endsAt: null };
 }
