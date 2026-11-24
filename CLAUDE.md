@@ -34,6 +34,12 @@ Portfolio demo of a multi-tenant B2B SaaS: Next.js 16 + Supabase + Stripe (test 
 - Pure billing rules live in `src/lib/billing/plans.ts` so they can be unit-tested.
 - Billing Server Actions start with `requireBillingManager(orgId)` (`src/lib/billing/guard.ts`) and throw `BillingError` for messages shown to the user. A scheduled cancellation can be `cancel_at_period_end` or `cancel_at` — use `scheduledEnd()`.
 
+## AI recaps (Claude API)
+- Claude is called only from the server (`src/lib/ai/generate-recap.ts`, server-only). Model from `env.anthropicModel()` (default `claude-haiku-5-5`), key from `ANTHROPIC_API_KEY`.
+- The output shape lives in `src/lib/ai/recap-schema.ts` (zod v4) and is shared by the API call (structured outputs via `zodOutputFormat`), validation and pages. Use `.nullable()`, not `.optional()`, for fields Claude may leave empty. Keep it compatible with the seed data and `mcp/src/supabase-data.ts`.
+- Pages read stored output with `readStoredOutput()` (lenient); new answers go through `completeWithRepair()` (strict, one repair turn).
+- Recap flow order: membership → input → `org_enabled_modules` → `reserve_recap` → Claude → save; release the reservation on any failure.
+
 ## MCP server (`mcp/`)
 - npm workspace `@recapwell/mcp`; built with esbuild to `mcp/dist/index.js` (`npm run mcp:build`), tests `npm run mcp:test`.
 - stdio transport: never write to stdout (it's the protocol) — log with `console.error`.
@@ -45,3 +51,4 @@ Portfolio demo of a multi-tenant B2B SaaS: Next.js 16 + Supabase + Stripe (test 
 
 ## Done means
 - `npm run lint`, `npm run build` and `npm run db:test` pass.
+- After changing the AI schema or repair logic, generate one real recap locally.

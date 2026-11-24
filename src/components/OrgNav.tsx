@@ -7,6 +7,7 @@ export function OrgNav({ slug }: { slug: string }) {
   const pathname = usePathname();
   const items = [
     { href: `/app/${slug}`, label: "Overview" },
+    { href: `/app/${slug}/recaps`, label: "Recaps" },
     { href: `/app/${slug}/members`, label: "Members" },
     { href: `/app/${slug}/billing`, label: "Billing" },
   ];
@@ -14,7 +15,8 @@ export function OrgNav({ slug }: { slug: string }) {
   return (
     <nav className="flex gap-1 text-sm">
       {items.map((item) => {
-        const active = pathname === item.href;
+        // Overview is exact; other sections stay active on their sub-pages (/recaps/new, /recaps/[id]).
+        const active = item.href === `/app/${slug}` ? pathname === item.href : pathname.startsWith(item.href);
         return (
           <Link
             key={item.href}

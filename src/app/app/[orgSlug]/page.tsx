@@ -1,8 +1,11 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getOrgContext } from "@/lib/orgs";
 import { PLAN_LABELS } from "@/lib/orgs-shared";
+import { readStoredOutput } from "@/lib/ai/recap-schema";
 import { createClient } from "@/lib/supabase/server";
+import { currentPeriodStart } from "@/lib/usage";
 
 export default function OrgOverviewPage({ params }: PageProps<"/app/[orgSlug]">) {
   return (
@@ -18,9 +21,7 @@ async function Overview({ params }: Pick<PageProps<"/app/[orgSlug]">, "params">)
   if (!ctx) notFound();
 
   const supabase = await createClient();
-  const monthStart = new Date();
-  monthStart.setUTCDate(1);
-  const period = monthStart.toISOString().slice(0, 10);
+  const period = currentPeriodStart();
 
   const [recaps, usage, openItems] = await Promise.all([
     supabase
@@ -58,37 +59,43 @@ async function Overview({ params }: Pick<PageProps<"/app/[orgSlug]">, "params">)
       </div>
 
       <section>
-        <h2 className="text-lg font-semibold">Recent recaps</h2>
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 className="text-lg font-semibold">Recent recaps</h2>
+          <Link href={`/app/${ctx.org.slug}/recaps/new`} className="text-sm font-medium text-brand">
+            New recap
+          </Link>
+        </div>
         {recaps.data && recaps.data.length > 0 ? (
           <ul className="mt-3 divide-y divide-line rounded-2xl border border-line bg-white">
             {recaps.data.map((recap) => (
-              <li key={recap.id} className="px-5 py-4">
-                <div className="flex items-baseline justify-between gap-4">
-                  <p className="font-medium">{recap.title}</p>
-                  <time className="shrink-0 text-xs text-ink-muted" dateTime={recap.created_at}>
-                    {new Date(recap.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                  </time>
-                </div>
-                <p className="mt-1 line-clamp-2 text-sm text-ink-muted">{summaryOf(recap.output)}</p>
+              <li key={recap.id}>
+                <Link
+                  href={`/app/${ctx.org.slug}/recaps/${recap.id}`}
+                  className="block px-5 py-4 transition hover:bg-surface"
+                >
+                  <div className="flex items-baseline justify-between gap-4">
+                    <p className="font-medium">{recap.title}</p>
+                    <time className="shrink-0 text-xs text-ink-muted" dateTime={recap.created_at}>
+                      {new Date(recap.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                    </time>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-sm text-ink-muted">{readStoredOutput(recap.output).summary}</p>
+                </Link>
               </li>
             ))}
           </ul>
         ) : (
           <div className="mt-3 rounded-2xl border border-dashed border-line bg-white p-10 text-center">
             <p className="font-medium">No recaps yet</p>
-            <p className="mt-1 text-sm text-ink-muted">Creating recaps with Claude arrives in step 6.</p>
+            <p className="mt-1 text-sm text-ink-muted">Paste meeting notes and Claude turns them into a recap.</p>
+            <Link href={`/app/${ctx.org.slug}/recaps/new`} className="btn-primary mt-4 inline-flex">
+              New recap
+            </Link>
           </div>
         )}
       </section>
     </div>
   );
-}
-
-function summaryOf(output: unknown) {
-  if (output && typeof output === "object" && "summary" in output && typeof output.summary === "string") {
-    return output.summary;
-  }
-  return "";
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

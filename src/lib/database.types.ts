@@ -293,8 +293,14 @@ isOneToOne: false
 "org_enabled_modules":
 { Args: { "p_org": string }; Returns: string[]
                            },
+"release_recap":
+{ Args: { "p_org": string,"p_period": string }; Returns: undefined
+                           },
 "remove_member":
 { Args: { "p_org": string,"p_user": string }; Returns: undefined
+                           },
+"reserve_recap":
+{ Args: { "p_org": string }; Returns: string
                            },
 "set_member_role":
 { Args: { "p_org": string,"p_role": Database["public"]['Enums']["org_role"],"p_user": string }; Returns: undefined

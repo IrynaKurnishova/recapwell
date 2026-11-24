@@ -23,7 +23,7 @@ Recapwell is a fictional product. Stripe runs in **test mode** only.
 - [x] 3. Organizations UI: onboarding, workspace switcher, members, invites, roles
 - [x] 4. Stripe: Checkout per workspace, webhooks → `subscriptions`
 - [x] 5. Billing page + Customer Portal
-- [ ] 6. AI recaps (Claude API) + plan and usage gating
+- [x] 6. AI recaps (Claude API) + plan and usage gating
 - [x] 6a. MCP server: use Recapwell from Claude (local, stdio)
 - [ ] 7. Modules: follow-up email, action tracker, export
 - [ ] 8. Workspace dashboard + super-admin dashboard
@@ -111,6 +111,21 @@ docker exec supabase_db_recapwell psql -U postgres \
 ```
 
 Every page of that workspace then shows the past-due banner. Any Stripe event, or Cancel → Keep on the Billing page, re-syncs the real status. An end-to-end check of a failed renewal uses Stripe test clocks (a subscription on a clock, card `4000 0000 0000 0341`, advance the clock past the renewal) — planned with the test suite. Note: these subscriptions use Stripe's flexible billing mode, where resetting the billing cycle with `proration_behavior=none` doesn't create an invoice, so it can't be used to force a charge.
+
+### Claude API (recaps)
+
+Create a key in the Claude Console (platform.claude.com → API keys) and put it into `.env.local` as `ANTHROPIC_API_KEY`. The default model is `claude-haiku-5-5` (about $0.001 per recap); set `ANTHROPIC_MODEL=claude-sonnet-5-5` for harder notes.
+
+How a recap is made (`src/app/app/[orgSlug]/recaps/actions.ts`):
+
+1. **Who and what.** The user must be a member of the workspace (RLS); title and notes are validated with zod.
+2. **Plan and modules.** `org_enabled_modules()` in Postgres decides what the workspace may use. The `summary` module is required; the follow-up email is generated only when `followup_email` is on (Team).
+3. **Monthly limit.** `reserve_recap(org)` counts the recap in `usage_counters` and checks the plan limit in one statement, so two parallel requests can't both take the last recap. It's callable only with the secret key. If anything below fails, `release_recap()` gives the recap back.
+4. **Claude call** on the server with **structured outputs**: the zod schema in `src/lib/ai/recap-schema.ts` is sent as a JSON schema, so the answer is shaped by the API.
+5. **Validation + repair** (`src/lib/ai/repair.ts`): the answer is checked again against the full zod schema, including the limits the API can't enforce (lengths, list sizes, real dates). Code fences or text around the JSON are stripped locally. If it's still invalid, or was cut off (`max_tokens`), Claude gets one repair turn with the exact validation errors. A refusal is not retried.
+6. **Save** with the secret key: the recap (with model and token counts), its action items and an `audit_log` entry (`recap.created`, incl. the number of attempts). Users have no insert rights on `recaps`/`action_items`, so the limit can't be skipped through the API.
+
+The meeting notes are passed as data inside `<notes>` tags, and the system prompt tells Claude to ignore instructions inside them.
 
 ### Demo accounts (password `password123`)
 

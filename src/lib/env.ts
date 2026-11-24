@@ -16,4 +16,7 @@ export const env = {
   supabaseSecretKey: () => required("SUPABASE_SECRET_KEY", process.env.SUPABASE_SECRET_KEY),
   stripeSecretKey: () => required("STRIPE_SECRET_KEY", process.env.STRIPE_SECRET_KEY),
   stripeWebhookSecret: () => required("STRIPE_WEBHOOK_SECRET", process.env.STRIPE_WEBHOOK_SECRET),
+  anthropicApiKey: () => required("ANTHROPIC_API_KEY", process.env.ANTHROPIC_API_KEY),
+  /** Model for recaps. Haiku 5.5 is fast and cheap; switch to claude-sonnet-5-5 for harder notes. */
+  anthropicModel: () => process.env.ANTHROPIC_MODEL || "claude-haiku-5-5",
 };
